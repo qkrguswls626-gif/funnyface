@@ -347,8 +347,8 @@ object Beard {
         }
         // 콧수염: 가운데는 코 밑까지, 양 끝은 입꼬리 옆으로 살짝 처짐
         fill(900, false) { _, v, au ->
-            au < 0.58f && v > -0.30f + 0.10f * (au / 0.58f).pow(2) &&
-                v < (if (au > 0.42f) 0.0f else -0.11f)
+            val bottom = if (au > 0.42f) 0.0f else -0.11f
+            au < 0.58f && v > -0.30f + 0.10f * (au / 0.58f).pow(2) && bottom > v
         }
         // 입 양옆
         fill(500, false) { _, v, au -> v >= -0.05f && v < CHIN_BASE && au > 0.52f && au < 0.85f }
