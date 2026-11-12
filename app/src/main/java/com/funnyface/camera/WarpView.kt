@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.view.View
 import kotlin.math.max
 
@@ -14,12 +16,13 @@ class WarpView(context: Context) : View(context) {
     private var frame: Bitmap? = null
     private var warp: WarpResult? = null
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val tintPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(170, 28, 20, 14)
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
     }
-    private val hairLines = FloatArray(Beard.hairs.size / Beard.STRIDE * 4)
+    private val faceLines = FloatArray(Beard.face.size / Beard.FACE_STRIDE * 4)
+    private val browLines = FloatArray(Beard.brow.size / Beard.BROW_STRIDE * 4)
     private val fit = Matrix()
 
     fun setFrame(bitmap: Bitmap, result: WarpResult) {
@@ -54,12 +57,23 @@ class WarpView(context: Context) : View(context) {
 
     private fun render(canvas: Canvas, b: Bitmap, w: WarpResult) {
         canvas.drawBitmapMesh(b, Warp.COLS, Warp.ROWS, w.verts, 0, null, 0, paint)
-        for (p in w.beards) drawBeard(canvas, p)
+        for (t in w.tints) {
+            if (t.r <= 0f) continue
+            tintPaint.shader = RadialGradient(
+                t.x, t.y, t.r, t.color, t.color and 0x00FFFFFF, Shader.TileMode.CLAMP
+            )
+            canvas.drawCircle(t.x, t.y, t.r, tintPaint)
+        }
+        for (p in w.beards) {
+            drawBeard(canvas, p)
+            drawBrow(canvas, p, p.elx, p.ely, -1f)
+            drawBrow(canvas, p, p.erx, p.ery, 1f)
+        }
     }
 
     private fun drawBeard(canvas: Canvas, p: BeardPose) {
-        val h = Beard.hairs
-        val len = 0.07f * p.ed
+        val h = Beard.face
+        val len = 0.045f * p.ed
         var o = 0
         var i = 0
         while (i < h.size) {
@@ -70,13 +84,39 @@ class WarpView(context: Context) : View(context) {
             val sy = p.oy + (p.ry * u + p.dy * v) * p.ed
             val sn = h[i + 2]
             val cs = h[i + 3]
-            hairLines[o++] = sx
-            hairLines[o++] = sy
-            hairLines[o++] = sx + (p.dx * cs + p.rx * sn) * len
-            hairLines[o++] = sy + (p.dy * cs + p.ry * sn) * len
-            i += Beard.STRIDE
+            faceLines[o++] = sx
+            faceLines[o++] = sy
+            faceLines[o++] = sx + (p.dx * cs + p.rx * sn) * len
+            faceLines[o++] = sy + (p.dy * cs + p.ry * sn) * len
+            i += Beard.FACE_STRIDE
         }
-        hairPaint.strokeWidth = max(1.5f, p.ed * 0.014f)
-        canvas.drawLines(hairLines, hairPaint)
+        hairPaint.color = Color.argb(135, 28, 20, 14)
+        hairPaint.strokeWidth = max(1.2f, p.ed * 0.009f)
+        canvas.drawLines(faceLines, hairPaint)
+    }
+
+    /** 눈 위에 짙은 눈썹을 그린다. side = -1 이면 화면 왼쪽 눈, +1 이면 오른쪽 눈. */
+    private fun drawBrow(canvas: Canvas, p: BeardPose, ex: Float, ey: Float, side: Float) {
+        val h = Beard.brow
+        val len = 0.07f * p.ed
+        var o = 0
+        var i = 0
+        while (i < h.size) {
+            val u = h[i] * side
+            val v = h[i + 1]
+            val sx = ex + (p.rx * u + p.dx * v) * p.ed
+            val sy = ey + (p.ry * u + p.dy * v) * p.ed
+            val sn = h[i + 2]
+            val cs = h[i + 3]
+            // 털은 바깥쪽을 향해 살짝 위로 눕는다
+            browLines[o++] = sx
+            browLines[o++] = sy
+            browLines[o++] = sx + (p.rx * side * cs - p.dx * sn) * len
+            browLines[o++] = sy + (p.ry * side * cs - p.dy * sn) * len
+            i += Beard.BROW_STRIDE
+        }
+        hairPaint.color = Color.argb(150, 24, 17, 12)
+        hairPaint.strokeWidth = max(1.4f, p.ed * 0.012f)
+        canvas.drawLines(browLines, hairPaint)
     }
 }

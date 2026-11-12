@@ -15,6 +15,16 @@ android {
         versionName = "1.0"
     }
 
+    // 빌드할 때마다 같은 서명을 쓰도록 고정 (그래야 기존 앱 위에 업데이트로 설치된다)
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

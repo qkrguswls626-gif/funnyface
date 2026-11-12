@@ -1,6 +1,9 @@
 package com.funnyface.camera
 
 import android.Manifest
+import android.content.ContentUris
+import android.content.Intent
+import android.net.Uri
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -44,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
     private var useFront = true
     @Volatile private var effect = Effect.CRY
+    @Volatile private var lastPhoto: Uri? = null
 
     private val detector by lazy {
         FaceDetection.getClient(
@@ -51,6 +55,7 @@ class MainActivity : ComponentActivity() {
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
                 .setMinFaceSize(0.15f)
+                .enableTracking()   // 같은 얼굴을 프레임마다 이어서 추적 (떨림 보정에 사용)
                 .build()
         )
     }
@@ -126,6 +131,13 @@ class MainActivity : ComponentActivity() {
         }
         actionRow.addView(shutter, LinearLayout.LayoutParams(WRAP_CONTENT, dp(64)))
         actionRow.addView(flip, LinearLayout.LayoutParams(WRAP_CONTENT, dp(64)).apply {
+            marginStart = dp(16)
+        })
+        val gallery = Button(this).apply {
+            text = "🖼 보관함"
+            setOnClickListener { openGallery() }
+        }
+        actionRow.addView(gallery, LinearLayout.LayoutParams(WRAP_CONTENT, dp(64)).apply {
             marginStart = dp(16)
         })
         bottom.addView(actionRow, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply {
@@ -234,6 +246,7 @@ class MainActivity : ComponentActivity() {
                 values.clear()
                 values.put(MediaStore.Images.Media.IS_PENDING, 0)
                 contentResolver.update(uri, values, null, null)
+                lastPhoto = uri
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "저장 실패", e)
@@ -247,6 +260,41 @@ class MainActivity : ComponentActivity() {
                 ).show()
             }
         }.start()
+    }
+
+    // ───────────── 보관함 ─────────────
+
+    /** 가장 최근에 찍은 사진을 휴대폰 갤러리 앱으로 바로 연다. */
+    private fun openGallery() {
+        val uri = lastPhoto ?: latestSavedPhoto()
+        if (uri == null) {
+            Toast.makeText(this, "아직 찍은 사진이 없어요", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "image/jpeg")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            })
+        } catch (e: Exception) {
+            Toast.makeText(this, "갤러리 앱을 열 수 없어요", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun latestSavedPhoto(): Uri? = try {
+        contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Images.Media._ID),
+            MediaStore.Images.Media.RELATIVE_PATH + " LIKE ?",
+            arrayOf("Pictures/FunnyFace%"),
+            MediaStore.Images.Media.DATE_ADDED + " DESC"
+        )?.use { c ->
+            if (c.moveToFirst()) {
+                ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, c.getLong(0))
+            } else null
+        }
+    } catch (e: Exception) {
+        null
     }
 
     override fun onDestroy() {
