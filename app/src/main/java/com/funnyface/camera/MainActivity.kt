@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
 
     private var useFront = true
-    @Volatile private var effect = Effect.BIG_EYES
+    @Volatile private var effect = Effect.CRY
 
     private val detector by lazy {
         FaceDetection.getClient(
@@ -200,8 +200,8 @@ class MainActivity : ComponentActivity() {
                 emptyList()
             }
 
-            val verts = Warp.build(frame.width, frame.height, faces, effect)
-            warpView.post { warpView.setFrame(frame, verts) }
+            val result = Warp.build(frame.width, frame.height, faces, effect)
+            warpView.post { warpView.setFrame(frame, result) }
         } catch (e: Exception) {
             Log.e(TAG, "프레임 처리 실패", e)
         } finally {
